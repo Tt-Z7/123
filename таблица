@@ -437,3 +437,221 @@ function addCloseButton(widget) {
   closeButton.addEventListener('click', () => closeModal(widget));
   document.body.appendChild(closeButton);
 }
+
+
+/1111111111111111111111111111111111111111111111111111111111111111
+// Создаем контейнер для кастомной легенды
+const legendContainer = document.createElement('div');
+legendContainer.style.position = 'absolute';
+legendContainer.style.right = '0';
+legendContainer.style.top = '0';
+legendContainer.style.display = 'flex';
+legendContainer.style.flexDirection = 'column';
+legendContainer.style.gap = '10px';
+legendContainer.style.padding = '10px';
+legendContainer.style.backgroundColor = '#f9f9f9';
+legendContainer.style.border = '1px solid #ddd';
+legendContainer.style.borderRadius = '5px';
+legendContainer.style.zIndex = '1000';
+document.querySelector(`[id=widget-${w.general.renderTo}]`).appendChild(legendContainer);
+
+// Инициализация Highcharts с отключенной анимацией
+const chart = Highcharts.chart({
+    chart: {
+        ...w.general,
+        marginRight: 200,
+        animation: false // Отключаем анимацию
+    },
+    plotOptions: {
+        ...w.plotOptions,
+        pie: {
+            ...w.plotOptions?.pie,
+            animation: false // Отключаем анимацию для круговой диаграммы
+        }
+    },
+    series: w.series.map(series => ({
+        ...series,
+        showInLegend: false,
+        animation: false // Отключаем анимацию для серий
+    })),
+    drilldown: w.drilldown,
+    legend: {
+        enabled: false
+    },
+    tooltip: w.tooltip,
+    colors: w.colors
+});
+
+// Константы
+const MODAL_WIDTH = 1700;
+const MODAL_HEIGHT = 900;
+const SCREEN_OFFSET = 20;
+const TARGET_WIDGET_GUID = '3a61907930834d918af24d34723fcf3e';
+const FILTER_WIDGET_GUID = '016837b0549d4990805cd7c0cd8ac42b';
+
+// Переменные состояния
+let originalWidgetState = null;
+let isWidgetExpanded = false;
+let currentFilterValue = null;
+
+// Функция для создания кастомной легенды с цветами
+function createLegend(series) {
+    legendContainer.innerHTML = '';
+
+    series.forEach((seriesItem) => {
+        seriesItem.data.forEach((dataPoint, dataIndex) => {
+            // Получаем цвет точки данных или используем цвет серии
+            const pointColor = dataPoint.color || seriesItem.color || w.colors[dataIndex % w.colors.length];
+            
+            const legendItem = document.createElement('div');
+            legendItem.style.display = 'flex';
+            legendItem.style.alignItems = 'center';
+            legendItem.style.cursor = 'pointer';
+            legendItem.style.padding = '5px';
+            legendItem.style.borderRadius = '5px';
+            legendItem.innerHTML = `
+                <span style="display: inline-block; width: 12px; height: 12px; 
+                background-color: ${pointColor}; 
+                margin-right: 8px;
+                border-radius: 3px;"></span>
+                <span style="font-size: 14px;">${dataPoint.name}</span>
+            `;
+            
+            // Добавляем hover-эффект
+            legendItem.addEventListener('mouseenter', () => {
+                legendItem.style.backgroundColor = '#f0f0f0';
+            });
+            legendItem.addEventListener('mouseleave', () => {
+                legendItem.style.backgroundColor = '';
+            });
+            
+            legendItem.addEventListener('click', () => {
+                const targetWidget = document.querySelector(`[id=widget-${TARGET_WIDGET_GUID}]`);
+                if (!targetWidget) return;
+                
+                if (isWidgetExpanded) {
+                    closeModal(targetWidget);
+                } else {
+                    openModal(targetWidget, dataPoint.name);
+                }
+            });
+            
+            legendContainer.appendChild(legendItem);
+        });
+    });
+}
+
+function openModal(widget, filterValue) {
+    // Сохраняем исходное состояние
+    originalWidgetState = {
+        position: widget.style.position,
+        top: widget.style.top,
+        left: widget.style.left,
+        width: widget.style.width,
+        height: widget.style.height,
+        zIndex: widget.style.zIndex,
+        transform: widget.style.transform,
+        boxShadow: widget.style.boxShadow,
+        parent: widget.parentNode
+    };
+
+    // Фиксированная позиция относительно верхнего и левого края
+    const leftPos = SCREEN_OFFSET; // Фиксированное расстояние от левого края
+    const topPos = SCREEN_OFFSET; // Фиксированное расстояние от верхнего края
+
+    // Применяем модальные стили
+    Object.assign(widget.style, {
+        position: 'fixed',
+        left: `${leftPos}px`,
+        top: `${topPos}px`,
+        width: `${MODAL_WIDTH}px`,
+        height: `${MODAL_HEIGHT}px`,
+        zIndex: '1001',
+        boxShadow: '0 0 20px rgba(0,0,0,0.3)',
+        margin: '0',
+        overflow: 'auto',
+        borderRadius: '8px'
+    });
+
+    // Устанавливаем фильтр в правильном формате [[значение]]
+    currentFilterValue = filterValue;
+    visApi().setFilterSelectedValues(FILTER_WIDGET_GUID, [[filterValue]], {
+        then: () => console.log('Фильтр установлен:', [[filterValue]])
+    });
+
+    // Добавляем кнопку закрытия
+    addCloseButton(widget);
+    isWidgetExpanded = true;
+}
+
+function closeModal(widget) {
+    if (!originalWidgetState) return;
+
+    // Восстанавливаем стили
+    Object.assign(widget.style, originalWidgetState);
+    
+    // Сбрасываем фильтр (передаем пустой массив массивов)
+    visApi().setFilterSelectedValues(FILTER_WIDGET_GUID, [], {
+        then: () => console.log('Фильтр сброшен')
+    });
+    currentFilterValue = null;
+    
+    // Удаляем кнопку закрытия
+    const closeBtn = document.getElementById('widget-close-btn');
+    if (closeBtn) closeBtn.remove();
+    
+    isWidgetExpanded = false;
+}
+
+function addCloseButton(widget) {
+    const closeButton = document.createElement('button');
+    closeButton.id = 'widget-close-btn';
+    closeButton.textContent = '×';
+    closeButton.title = 'Закрыть';
+    Object.assign(closeButton.style, {
+        position: 'absolute',
+        right: '15px',
+        top: '15px',
+        width: '32px',
+        height: '32px',
+        background: '#ffffff',
+        border: '1px solid #ddd',
+        borderRadius: '50%',
+        fontSize: '20px',
+        cursor: 'pointer',
+        zIndex: '1002',
+        boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+        transition: 'all 0.2s'
+    });
+    
+    // Hover-эффект для кнопки
+    closeButton.addEventListener('mouseenter', () => {
+        closeButton.style.background = '#f5f5f5';
+        closeButton.style.transform = 'scale(1.1)';
+    });
+    closeButton.addEventListener('mouseleave', () => {
+        closeButton.style.background = '#ffffff';
+        closeButton.style.transform = 'scale(1)';
+    });
+    
+    closeButton.addEventListener('click', (e) => {
+        e.stopPropagation();
+        closeModal(widget);
+    });
+    
+    widget.appendChild(closeButton);
+}
+
+// Обработчик ресайза - теперь просто фиксирует позицию относительно краев
+window.addEventListener('resize', () => {
+    if (isWidgetExpanded) {
+        const widget = document.querySelector(`[id=widget-${TARGET_WIDGET_GUID}]`);
+        if (widget) {
+            widget.style.left = `${SCREEN_OFFSET}px`;
+            widget.style.top = `${SCREEN_OFFSET}px`;
+        }
+    }
+});
+
+// Инициализация
+createLegend(w.series);
