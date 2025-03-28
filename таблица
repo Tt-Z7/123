@@ -1,0 +1,439 @@
+// Стили для заголовка
+var theadStyle = "position: sticky; border-radius: 15px 15px 0 0; zIndex: 1; top: 0px; background-color: #464a52; color: #aeb9bf; text-align:left; vertical-align:top; height: 30px; font-family: Open Sans, sans-serif; font-size: 14px;";
+
+// Стили для заголовков и ячеек
+var cellStyle = "padding: 10px; font-family: Open Sans, sans-serif; font-size: 14px; border-right: 1px solid #464a52;";
+var headerCellStyle = "padding: 8px; border-right: 1px solid #464a52;";
+
+// Функция для создания таблицы с учетом выбранного значения
+function createTable() {
+    // Очищаем контейнер перед созданием новой таблицы
+    $('#' + w.general.renderTo).empty();
+    
+    // Создаем таблицу
+    var table = $('<table style="color: white; border-collapse: collapse; margin-left: 14px; width: calc(100%-15px); table-layout: fixed; border-radius: 15px;">');
+    
+    // Создаем заголовок
+    var thead = $('<thead style="' + theadStyle + '">');
+    
+    // Определяем какие столбцы показывать в зависимости от выбранного значения
+    var columnsToShow = [];
+    var extraColumns = [];
+    var isMoscow = selectedFilterValue === "Москва";
+    
+    if (selectedFilterValue === "Барнаул") {
+        columnsToShow = [1, 3];
+        extraColumns = [{name: "Дата", width: "100px"}];
+    } else if (isMoscow) {
+        columnsToShow = Array.from({length: w.data.primaryData.items[0].metadata.length}, (_, i) => i);
+        extraColumns = [
+            {name: "план", width: "80px"},
+            {name: "факт", width: "80px"},
+            {name: "дельта", width: "80px"},
+            {name: "показатель", width: "100px"}
+        ];
+    } else {
+        columnsToShow = Array.from({length: w.data.primaryData.items[0].metadata.length}, (_, i) => i);
+    }
+    
+    // Первая строка заголовка
+    var headerRow1 = $('<tr>');
+    
+    // Добавляем столбец с порядковым номером
+    headerRow1.append($('<th style="' + headerCellStyle + '; width: 50px;" rowspan="' + (isMoscow ? 2 : 1) + '">').text('№'));
+    
+    // Добавляем основные столбцы
+    columnsToShow.forEach(function(index) {
+        var m = w.data.primaryData.items[0].metadata[index];
+        var th = $('<th style="' + headerCellStyle + '" rowspan="' + (isMoscow ? 2 : 1) + '">').text(m.displayName);
+        
+        var sortButton = $('<button style="background: none; border: none; cursor: pointer; color: #aeb9bf; margin-left: 5px;">').html('&#8595;&#8593;');
+        var isAscending = true;
+
+        sortButton.click(function() {
+            sortTable(index, isAscending);
+            isAscending = !isAscending;
+        });
+        
+        th.append(sortButton);
+        
+        // Устанавливаем ширину для колонки
+        if (index === 0) {
+            th.css('width', '110px');
+        } else if (index >= 1 && index <= 3) {
+            th.css('width', '100px');
+            th.css('text-align', 'center');
+        }
+        headerRow1.append(th);
+    });
+    
+    // Для Москвы добавляем объединенный заголовок
+    if (isMoscow) {
+        var cityHeader = $('<th style="' + headerCellStyle + '; text-align: center;" colspan="4">').text('Город');
+        headerRow1.append(cityHeader);
+    } else {
+        // Добавляем дополнительные столбцы для других случаев
+        extraColumns.forEach(function(col) {
+            var th = $('<th style="' + headerCellStyle + '; width: ' + col.width + '" rowspan="1">').text(col.name);
+            headerRow1.append(th);
+        });
+    }
+    
+    thead.append(headerRow1);
+    
+    // Вторая строка заголовка (только для Москвы)
+    if (isMoscow) {
+        var headerRow2 = $('<tr>');
+        
+        // Добавляем подзаголовки для города
+        extraColumns.forEach(function(col) {
+            var th = $('<th style="' + headerCellStyle + '; width: ' + col.width + '; text-align: center;">').text(col.name);
+            headerRow2.append(th);
+        });
+        
+        thead.append(headerRow2);
+    }
+    
+    headerRow1.find("th:first-child").css("border-top-left-radius", "15px");
+    headerRow1.find("th:last-child").css("border-top-right-radius", "15px");
+    
+    table.append(thead);
+    
+    // Сортируем данные
+    w.data.primaryData.items.sort(function(a, b) {
+        return b.values[1] - a.values[1];
+    });
+    
+    // Создаем тело таблицы
+    var tbody = $('<tbody>');
+    
+    // Добавляем строки и ячейки
+    w.data.primaryData.items.forEach(function (item, rowIndex) {
+        var row = $('<tr style="border-bottom: 1px solid #464a52; height: 45px">');
+        
+        // Добавляем порядковый номер
+        row.append($('<td style="' + cellStyle + '; text-align: center;">').text(rowIndex + 1));
+        
+        // Добавляем основные ячейки
+        columnsToShow.forEach(function(index) {
+            var value = item.values[index];
+            var cell = $('<td style="' + cellStyle + '">').text(value);
+            if (index >= 1 && index <= 3) {
+                cell.css({ textAlign: 'center' });
+            }
+            row.append(cell);
+        });
+        
+        // Добавляем пустые ячейки для дополнительных столбцов
+        extraColumns.forEach(function() {
+            row.append($('<td style="' + cellStyle + '">').text(''));
+        });
+        
+        tbody.append(row);
+    });
+    
+    table.append(tbody);
+    
+    // Добавляем футер с суммами (только для Москвы)
+    if (isMoscow) {
+        var tfoot = $('<tfoot style="position: sticky; bottom: 0; background-color: #464a52; z-index: 1;">');
+        var footerRow = $('<tr>');
+        
+        // Пустая ячейка для номера
+        footerRow.append($('<td style="' + cellStyle + '; text-align: center;">').text('Итого'));
+        
+        // Ячейки для основных столбцов
+        columnsToShow.forEach(function(index) {
+            if (index >= 1 && index <= 3) {
+                var sum = w.data.primaryData.items.reduce((acc, item) => acc + parseFloat(item.values[index] || 0), 0);
+                footerRow.append($('<td style="' + cellStyle + '; text-align: center; font-weight: bold;">').text(sum.toFixed(2)));
+            } else {
+                footerRow.append($('<td style="' + cellStyle + '">').text(''));
+            }
+        });
+        
+        // Ячейки для дополнительных столбцов (пустые)
+        extraColumns.forEach(function() {
+            footerRow.append($('<td style="' + cellStyle + '">').text(''));
+        });
+        
+        tfoot.append(footerRow);
+        table.append(tfoot);
+    }
+    
+    // Добавляем таблицу в контейнер
+    var container = $('<div style="overflow: auto; width: 100%; height: 95%;"></div>')
+    container.append(table);
+    $('#' + w.general.renderTo).append(container);
+}
+
+// Остальной код остается без изменений
+function sortTable(columnIndex, ascending) {
+    w.data.primaryData.items.sort(function(a, b) {
+        var valueA = a.values[columnIndex];
+        var valueB = b.values[columnIndex];
+
+        if (!isNaN(valueA)) {
+            valueA = parseFloat(valueA);
+            valueB = parseFloat(valueB);
+        }
+
+        if (ascending) {
+            return valueA > valueB ? 1 : -1;
+        } else {
+            return valueA < valueB ? 1 : -1;
+        }
+    });
+
+    createTable();
+}
+
+// Инициализация таблицы
+createTable();
+
+
+
+//111111111111111111111111111111111111111111111111111111111111111111111111111111111
+
+// Стили для заголовка
+var theadStyle = "position: sticky; border-radius: 15px 15px 0 0; zIndex: 1; top: 0px; background-color: #464a52; color: #aeb9bf; text-align:left; vertical-align:top; height: 30px; font-family: Open Sans, sans-serif; font-size: 14px;";
+
+// Стили для заголовков и ячеек
+var cellStyle = "padding: 10px; font-family: Open Sans, sans-serif; font-size: 14px; border-right: 1px solid #464a52;";
+var headerCellStyle = "padding: 8px; border-right: 1px solid #464a52;";
+
+ 
+function createTable() {
+    console.log("Отрисовка таблицы для:", selectedFilterValue);
+    
+    // Очищаем контейнер
+    var container = $('#' + w.general.renderTo);
+    container.empty();
+    
+    // Проверяем наличие данных
+    if (!w.data.primaryData || !w.data.primaryData.items || w.data.primaryData.items.length === 0) {
+        console.error("Нет данных для отображения");
+        return;
+    }
+    
+    // Создаем таблицу
+    var table = $('<table style="color: white; border-collapse: collapse; margin-left: 14px; width: calc(100%-15px); table-layout: fixed; border-radius: 15px;">');
+    
+    // Определяем режим отображения
+    var isMoscow = selectedFilterValue === "Москва";
+    var isIrkutsk = selectedFilterValue === "Иркутск";
+    var isBarnaul = selectedFilterValue === "Барнаул";
+    var isSpecialView = isMoscow || isIrkutsk;
+    
+    // Создаем заголовок
+    var thead = $('<thead style="' + theadStyle + '">');
+    var headerRow1 = $('<tr>');
+    
+    // Добавляем столбец с порядковым номером
+    headerRow1.append($('<th style="' + headerCellStyle + '; width: 50px;" rowspan="' + (isSpecialView ? 2 : 1) + '">').text('№'));
+    
+    // Основные столбцы
+    w.data.primaryData.items[0].metadata.forEach(function(m, index) {
+        var th = $('<th style="' + headerCellStyle + '"' + (isSpecialView ? ' rowspan="2"' : '') + '>').text(m.displayName);
+        
+        var sortButton = $('<button style="background: none; border: none; cursor: pointer; color: #aeb9bf; margin-left: 5px;">').html('&#8595;&#8593;');
+        var isAscending = true;
+
+        sortButton.click(function() {
+            sortTable(index, isAscending);
+            isAscending = !isAscending;
+        });
+        
+        th.append(sortButton);
+        th.css('width', index === 0 ? '110px' : '100px');
+        if (index >= 1 && index <= 3) th.css('text-align', 'center');
+        
+        headerRow1.append(th);
+    });
+    
+    // Дополнительные столбцы
+    if (isMoscow) {
+        headerRow1.append($('<th style="' + headerCellStyle + '; text-align: center;" colspan="4">').text('Московские показатели'));
+    } 
+    else if (isIrkutsk) {
+        headerRow1.append($('<th style="' + headerCellStyle + '; text-align: center;" colspan="4">').text('Иркутские метрики'));
+    }
+    else if (isBarnaul) {
+        headerRow1.append($('<th style="' + headerCellStyle + '; width: 100px;">').text('Дата'));
+    }
+    
+    thead.append(headerRow1);
+    
+    // Вторая строка заголовка для специальных видов
+    if (isSpecialView) {
+        var headerRow2 = $('<tr>');
+        
+        // Пустые ячейки для выравнивания
+        w.data.primaryData.items[0].metadata.forEach(function() {
+            headerRow2.append($('<th style="display: none;">'));
+        });
+        
+        if (isMoscow) {
+            ['План работ', 'Факт выполнения', 'Дельта', 'KPI'].forEach(function(name) {
+                headerRow2.append($('<th style="' + headerCellStyle + '; width: 100px; text-align: center;">').text(name));
+            });
+        } 
+        else if (isIrkutsk) {
+            ['Производство', 'Логистика', 'Качество', 'Эффективность'].forEach(function(name) {
+                headerRow2.append($('<th style="' + headerCellStyle + '; width: 100px; text-align: center;">').text(name));
+            });
+        }
+        
+        thead.append(headerRow2);
+    }
+    
+    table.append(thead);
+    
+    // Сортируем данные
+    w.data.primaryData.items.sort(function(a, b) {
+        return (b.values[1] || 0) - (a.values[1] || 0);
+    });
+    
+    // Создаем тело таблицы
+    var tbody = $('<tbody>');
+    
+    // Добавляем строки данных
+    w.data.primaryData.items.forEach(function(item, rowIndex) {
+        var row = $('<tr style="border-bottom: 1px solid #464a52; height: 45px">');
+        
+        // Порядковый номер
+        row.append($('<td style="' + cellStyle + '; text-align: center;">').text(rowIndex + 1));
+        
+        // Основные ячейки
+        item.values.forEach(function(value, index) {
+            var cell = $('<td style="' + cellStyle + '">').text(value || '');
+            if (index >= 1 && index <= 3) cell.css('text-align', 'center');
+            row.append(cell);
+        });
+        
+        // Дополнительные ячейки
+        if (isMoscow) {
+            [2, 3, 4, 5].forEach(function(index) {
+                var value = item.values[index] || '';
+                row.append($('<td style="' + cellStyle + '; text-align: center;">').text(value));
+            });
+        } 
+        else if (isIrkutsk) {
+            [3, 1, 4, 2].forEach(function(index) {
+                var value = item.values[index] || '';
+                row.append($('<td style="' + cellStyle + '; text-align: center;">').text(value));
+            });
+        }
+        else if (isBarnaul) {
+            row.append($('<td style="' + cellStyle + '">').text(''));
+        }
+        
+        tbody.append(row);
+    });
+    
+    table.append(tbody);
+    
+    // Добавляем футер для специальных видов
+    if (isSpecialView) {
+        var tfoot = $('<tfoot style="position: sticky; bottom: 0; background-color: #464a52; z-index: 1;">');
+        var footerRow = $('<tr>');
+        
+        footerRow.append($('<td style="' + cellStyle + '; text-align: center; font-weight: bold;">').text('Итого'));
+        
+        // Основные столбцы (пустые)
+        w.data.primaryData.items[0].values.forEach(function() {
+            footerRow.append($('<td style="' + cellStyle + '">').text(''));
+        });
+        
+        // Суммы для Москвы
+        if (isMoscow) {
+            [2, 3, 4, 5].forEach(function(index) {
+                var sum = w.data.primaryData.items.reduce(function(acc, item) {
+                    return acc + (parseFloat(item.values[index]) || 0);
+                }, 0);
+                footerRow.append($('<td style="' + cellStyle + '; text-align: center; font-weight: bold;">').text(sum.toFixed(2)));
+            });
+        }
+        // Суммы для Иркутска
+        else if (isIrkutsk) {
+            [3, 1, 4, 2].forEach(function(index) {
+                var sum = w.data.primaryData.items.reduce(function(acc, item) {
+                    return acc + (parseFloat(item.values[index]) || 0);
+                }, 0);
+                footerRow.append($('<td style="' + cellStyle + '; text-align: center; font-weight: bold;">').text(sum.toFixed(2)));
+            });
+        }
+        
+        tfoot.append(footerRow);
+        table.append(tfoot);
+    }
+    
+    // Добавляем таблицу в контейнер
+    container.append($('<div style="overflow: auto; width: 100%; height: 95%;">').append(table));
+}
+
+function sortTable(columnIndex, ascending) {
+    w.data.primaryData.items.sort(function(a, b) {
+        var valueA = a.values[columnIndex];
+        var valueB = b.values[columnIndex];
+
+        if (!isNaN(valueA) && !isNaN(valueB)) {
+            valueA = parseFloat(valueA) || 0;
+            valueB = parseFloat(valueB) || 0;
+            return ascending ? valueA - valueB : valueB - valueA;
+        }
+        
+        valueA = String(valueA || '');
+        valueB = String(valueB || '');
+        return ascending ? valueA.localeCompare(valueB) : valueB.localeCompare(valueA);
+    });
+
+    createTable();
+}
+
+// Инициализация таблицы
+createTable();
+
+
+/1111111111111111111111111111111111111111111111111111
+
+function addCloseButton(widget) {
+  const closeButton = document.createElement('button');
+  closeButton.id = 'widget-close-btn';
+  closeButton.innerHTML = '&times;';
+  
+  // Адаптация под 2K
+  const is2K = window.innerWidth >= 2560;
+  const size = is2K ? 48 : 32;
+  const fontSize = is2K ? '32px' : '20px';
+  
+  Object.assign(closeButton.style, {
+    position: 'fixed',
+    right: '40px',
+    top: '40px',
+    width: `${size}px`,
+    height: `${size}px`,
+    fontSize: fontSize,
+    zIndex: '2147483647',
+    background: 'rgba(255,255,255,0.9)',
+    border: '2px solid #ddd',
+    borderRadius: '50%',
+    cursor: 'pointer',
+    boxShadow: '0 0 15px rgba(0,0,0,0.3)'
+  });
+
+  // Динамическое обновление позиции
+  const updatePosition = () => {
+    const widgetRect = widget.getBoundingClientRect();
+    const maxRight = window.innerWidth - 50;
+    const right = Math.min(widgetRect.right - 30, maxRight);
+    closeButton.style.right = `${right}px`;
+    closeButton.style.top = `${widgetRect.top + 30}px`;
+  };
+  
+  window.addEventListener('resize', updatePosition);
+  updatePosition();
+
+  closeButton.addEventListener('click', () => closeModal(widget));
+  document.body.appendChild(closeButton);
+}
